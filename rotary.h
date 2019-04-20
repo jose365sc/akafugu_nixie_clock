@@ -12,58 +12,32 @@
  * PARTICULAR PURPOSE.  See the GNU General Public License for more details.
  *
  */
-
 #ifndef ROTARY_H_
 #define ROTARY_H_
 
 #include <stdbool.h>
-
 #include <avr/io.h>
 
 class Rotary {
 public:
-  Rotary() 
-  : m_rotary_raw_pos(0)
-  , m_min(0)
-  , m_max(12*4)
-  , m_rotary_pos(0)
-  , m_divider(4)
-  {}
-  
-  // fixme: set pins properly using arduino functions
-  void begin();
-  
-  void setDivider(uint8_t divider);
-  void setRange(uint8_t from, uint8_t to);
-  
-  void setPosition(uint8_t value);
-  void incrementPosition();
-  void decrementPosition();
-  
-  void wrap();
-
-  void save();
-  void restore();
-
-  uint8_t getPosition();
-  uint8_t getRawPosition();
-
+  static void begin();
+  static bool init(int from, int to, int current, int divider);
+  static int getValue();
+  static void incrementValue();
+  static void decrementValue();
+  static const int ticksPerRotation = 4 * 12;
+  static void save();
+  static void restore();
 private:
-  //uint8_t m_encoder_state;
-  
-  // Raw position of rotary encoder (4 ticks per click)
-  uint8_t m_rotary_raw_pos;
-  // max and min value
-  uint8_t m_min, m_max;
-  // Current position of rotary encoder
-  uint8_t m_rotary_pos;
-  // Divider for rotary encoder position
-  uint8_t m_divider;
-  
-  // saved values
-  uint8_t m_saved_pos, m_saved_min, m_saved_max;
+  static int s_from;
+  static int s_to;
+  static int s_value_base;
+  static int s_divider;
+  static int s_saved_from;
+  static int s_saved_to;
+  static int s_saved_value;
+  static int s_saved_divider;
 };
-
 
 #endif // ROTARY_H_
 

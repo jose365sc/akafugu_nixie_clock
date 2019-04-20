@@ -36,9 +36,6 @@ uint8_t display_on = false;
 
 void set_indicator(uint8_t intensity, bool override_state = false);
 
-// rotary encoder
-extern Rotary rotary;
-
 // alarm switch
 pin_direct_t switch_pin;
 
@@ -191,10 +188,10 @@ void display_init()
 
   // Initialize rotary encoder
 #ifdef HAVE_ROTARY
-  rotary.begin();
+  Rotary::begin();
 #endif
 
-  rotary.setRange(0, BACKLIGHT_MODES); // should match the number of RGB led settings
+  Rotary::init(0, BACKLIGHT_MODES, 0, Rotary::ticksPerRotation / BACKLIGHT_MODES); // should match the number of RGB led settings
 
   sei();	// Enable interrupts
   Wire.begin();
@@ -405,7 +402,7 @@ void disp2(uint8_t pos, int8_t value)
 
 void enter_anti_poison_mode()
 {
-  rotary.save();
+  Rotary::save();
   g_blank = 0;
   g_test_counter = 0;
   g_clock_state = STATE_ANTIPOISON;
@@ -511,7 +508,7 @@ void start_alarm()
   PCICR &= ~(1 << PCIE2);
   
   // save rotary state
-  rotary.save();
+  Rotary::save();
   
   g_clock_state = STATE_ALARMING;
 }
@@ -533,8 +530,8 @@ void stop_alarm()
   PCMSK2 |= (1 << PCINT19);
 
   // restore rotary state
-  rotary.restore();
-
+  Rotary::restore();
+  
   g_clock_state = STATE_CLOCK;
 }
 
@@ -555,8 +552,7 @@ void exit_menu()
     set_indicator(INDICATOR_OFF);
     g_display_mode = 0;
     g_update_rtc = true;
-    rotary.setDivider(4);
-    rotary.restore();
+    Rotary::restore();
     g_clock_state = STATE_CLOCK;            
     button.b1_keyup = 0;
       
@@ -628,13 +624,13 @@ void handle_button_3()
 #endif // HAVE_GPS
         // increment
         if (button.b3_keyup) {
-            rotary.incrementPosition();
+            Rotary::incrementValue();
             button.b3_keyup = 0;
             button.b3_repeat = 0;
         }
         
         if (button.b3_repeat) {
-            rotary.incrementPosition();
+            Rotary::incrementValue();
             button.b3_repeat = 0;
         }
         
@@ -684,7 +680,7 @@ void loop() {
 
           if (g_update_backlight) {
 #ifdef HAVE_ROTARY
-            set_backlight_mode(rotary.getPosition());
+            set_backlight_mode(Rotary::getValue());
 #else
             pop_backlight_mode();
 #endif
@@ -715,7 +711,7 @@ void loop() {
                   delay(200);
                   analogWrite(PinMap::piezo, 0);
                   
-                  rotary.save();
+                  Rotary::save();
                   g_blank = 0;
                   g_test_counter = 0;
                   g_clock_state = STATE_TEST_MODE;
@@ -758,7 +754,7 @@ void loop() {
                 delay(200);
                 analogWrite(PinMap::piezo, 0);
                   
-                rotary.save();
+                Rotary::save();
                 g_blank = 0;
                 g_test_counter = 0;
                 g_clock_state = STATE_TEST_MODE;
@@ -776,10 +772,8 @@ void loop() {
             if (button_held_counter >= CHARGE_HIGH) {
               //Serial.println("Entering custom settings");
               
-              rotary.save();
-              rotary.setDivider(10);
-              rotary.setRange(0, 1);
-              rotary.setPosition(g_24h);
+              Rotary::save();
+              Rotary::init(0, 2, g_24h, Rotary::ticksPerRotation / 2);
 
               set_dots(false, false);
               g_blank = 0;
@@ -794,9 +788,8 @@ void loop() {
               set_mm = t->min;
               set_ss = 0;
 
-              rotary.save();
-              rotary.setRange(0, 23);
-              rotary.setPosition(set_hh);
+              Rotary::save();
+              Rotary::init(0, 24, set_hh, Rotary::ticksPerRotation / 12);
               
               disp2(0, set_hh);
               disp2(1, set_mm);
@@ -816,9 +809,8 @@ void loop() {
               set_mm = t->min;
               set_ss = 0;
 
-              rotary.save();
-              rotary.setRange(0, 23);
-              rotary.setPosition(set_hh);
+              Rotary::save();
+              Rotary::init(0, 24, set_hh, Rotary::ticksPerRotation / 12);
               
               disp2(0, set_hh);
               disp2(1, set_mm);
@@ -896,8 +888,7 @@ void loop() {
           if (button.b1_keyup) {
             g_blank = 2;
             
-            rotary.setRange(0, 59);
-            rotary.setPosition(set_mm);
+            Rotary::init(0, 60, set_mm, Rotary::ticksPerRotation / 12);
             
             g_clock_state = STATE_SET_ALARM_MM;
             button.b1_keyup = 0;
@@ -905,7 +896,7 @@ void loop() {
             set_backlight_mm();
           }
           else {
-            set_hh = (rotary.getPosition()) % 24;
+            set_hh = Rotary::getValue() % 24;
             disp2(0, set_hh);
           }
         }
@@ -922,12 +913,12 @@ void loop() {
             g_display_mode = 0;
             g_update_rtc = true;
             g_update_backlight = true;
-            rotary.restore();
+            Rotary::restore();
             g_clock_state = STATE_CLOCK;            
             button.b1_keyup = 0;
           }
           else {
-            set_mm = (rotary.getPosition()) % 60;
+            set_mm = Rotary::getValue() % 60;
             disp2(1, set_mm);
           }
         }
@@ -938,8 +929,7 @@ void loop() {
           if (button.b1_keyup) {
             g_blank = 2;
             
-            rotary.setRange(0, 59);
-            rotary.setPosition(set_mm);
+            Rotary::init(0, 60, set_mm, Rotary::ticksPerRotation / 12);
             
             g_clock_state = STATE_SET_CLOCK_MM;
             button.b1_keyup = 0;
@@ -947,7 +937,7 @@ void loop() {
             set_backlight_mm();
           }
           else {
-            set_hh = (rotary.getPosition()) % 24;
+            set_hh = Rotary::getValue() % 24;
             disp2(0, set_hh);
           }
         }
@@ -961,8 +951,7 @@ void loop() {
             else
                 g_blank = 2;
             
-            rotary.setRange(0, 59);
-            rotary.setPosition(set_ss);
+            Rotary::init(0, 60, set_ss, Rotary::ticksPerRotation / 12);
             
             g_clock_state = STATE_SET_CLOCK_SS;
             button.b1_keyup = 0;
@@ -970,7 +959,7 @@ void loop() {
             set_backlight_ss();
           }
           else {
-            set_mm = (rotary.getPosition()) % 60;
+            set_mm = Rotary::getValue() % 60;
             disp2(1, set_mm);
           }
         }
@@ -987,12 +976,12 @@ void loop() {
             g_display_mode = 0;
             g_update_rtc = true;
             g_update_backlight = true;
-            rotary.restore();
+            Rotary::restore();
             g_clock_state = STATE_CLOCK;            
             button.b1_keyup = 0;
           }
           else {
-            set_ss = (rotary.getPosition()) % 60;
+            set_ss = Rotary::getValue() % 60;
             
             if (g_digits == 6) {
                 disp2(2, set_ss);
@@ -1018,7 +1007,7 @@ void loop() {
             g_display_mode = 0;
             g_update_rtc = true;
             g_update_backlight = true;
-            rotary.restore();            
+            Rotary::restore();            
             
             g_clock_state = STATE_CLOCK;            
             button.b1_keyup = 0;
@@ -1047,7 +1036,7 @@ void loop() {
             g_display_mode = 0;
             g_update_rtc = true;
             g_update_backlight = true;
-            rotary.restore();
+            Rotary::restore();
             
             g_clock_state = STATE_CLOCK;
             antipoison_counter = 0;
@@ -1057,15 +1046,14 @@ void loop() {
         case STATE_MENU_24H: // menu item 1 (12/24)
         {
           if (button.b1_keyup) { // go to STATE_MENU_DOTS
-            g_24h = rotary.getPosition();
+            g_24h = Rotary::getValue() % 2;
             
-            rotary.setRange(0, 2);
-            rotary.setPosition(g_dots_setting);
+            Rotary::init(0, 3, g_dots_setting, Rotary::ticksPerRotation / 3);
             g_clock_state = STATE_MENU_DOTS;
           }
           else {
             disp2(0, 1);
-            disp2(1, rotary.getPosition() % 2 == 0 ? 12 : 24);
+            disp2(1, Rotary::getValue() % 2 == 0 ? 12 : 24);
             data[0] = data[1] = 10;
           }
         }
@@ -1073,60 +1061,56 @@ void loop() {
         case STATE_MENU_DOTS: // menu item 2 (0, 1, 2)
         {
           if (button.b1_keyup) { // go to STATE_MENU_LEADING_ZEROS
-            g_dots_setting = rotary.getPosition();
+            g_dots_setting = Rotary::getValue() % 3;
           
-            rotary.setRange(0, 1);
-            rotary.setPosition(g_leading_zeros);
+            Rotary::init(0, 2, g_leading_zeros, Rotary::ticksPerRotation / 2);
             g_clock_state = STATE_MENU_LEADING_ZEROS;
           }
           else {
             disp2(0, 2);
-            disp2(1, rotary.getPosition());
+            disp2(1, Rotary::getValue() % 3);
           }
         }
         break;
         case STATE_MENU_LEADING_ZEROS: // menu item 3 (0, 1)
         {
           if (button.b1_keyup) { // go to STATE_MENU_WAKE_SOUND
-            g_leading_zeros = rotary.getPosition();
+            g_leading_zeros = Rotary::getValue() % 2;
           
-            rotary.setRange(0, 1);
-            rotary.setPosition(g_wakeup_sound);
+            Rotary::init(0, 2, g_wakeup_sound, Rotary::ticksPerRotation / 2);
             g_clock_state = STATE_MENU_WAKE_SOUND;
           }
           else {
             disp2(0, 3);
-            disp2(1, rotary.getPosition());
+            disp2(1, Rotary::getValue() % 2);
           }
         }
         break;
         case STATE_MENU_WAKE_SOUND: // menu item 4 (0, 1)
         {
           if (button.b1_keyup) {
-            g_wakeup_sound = rotary.getPosition();
+            g_wakeup_sound = Rotary::getValue();
           
-            rotary.setRange(0, 1);
-            rotary.setPosition(g_screensaver);
+            Rotary::init(0, 2, g_screensaver, Rotary::ticksPerRotation / 2);
             g_clock_state = STATE_MENU_SCREEN_SAVER;
           }
           else {
             disp2(0, 4);
-            disp2(1, rotary.getPosition());
+            disp2(1, Rotary::getValue());
           }
         }
         break;
         case STATE_MENU_SCREEN_SAVER: // menu item 5 (0, 1)
         {
           if (button.b1_keyup) { // go to STATE_MENU_ANTI_POISON
-            g_screensaver = rotary.getPosition();
+            g_screensaver = Rotary::getValue() % 2;
           
-            rotary.setRange(0, 1);
-            rotary.setPosition(g_antipoison);
+            Rotary::init(0, 2, g_antipoison, Rotary::ticksPerRotation / 2);
             g_clock_state = STATE_MENU_ANTI_POISON;
           }
           else {
             disp2(0, 5);
-            disp2(1, rotary.getPosition());
+            disp2(1, Rotary::getValue() % 2);
           }
         }
         break;
@@ -1134,22 +1118,21 @@ void loop() {
         {
 #ifdef HAVE_GPS
           if (button.b1_keyup) { // go to STATE_MENU_GPS
-            g_antipoison = rotary.getPosition();
+            g_antipoison = Rotary::getValue() % 2;
             
-            rotary.setRange(0, 1);
-            rotary.setPosition(g_gps_enabled);
+            Rotary::init(0, 2, g_gps_enabled, Rotary::ticksPerRotation / 2);
             g_clock_state = STATE_MENU_GPS;
           }
 #else          
           if (button.b1_keyup) { // EXIT MENU
-            g_antipoison = rotary.getPosition();
+            g_antipoison = Rotary::getValue() % 2;
           
             exit_menu();
           }
 #endif // HAVE_GPS    
           else {
             disp2(0, 6);
-            disp2(1, rotary.getPosition());
+            disp2(1, Rotary::getValue() % 2);
           }
         }
         break;
@@ -1157,32 +1140,29 @@ void loop() {
         case STATE_MENU_GPS: // menu item 7 
         {
           if (button.b1_keyup) { // Go to STATE_MENU_GPS_TZH
-            g_gps_enabled = rotary.getPosition();
+            g_gps_enabled = Rotary::getValue() % 2;
             
             gps_init(g_gps_enabled ? 48 : 0); // fixme: support both modes
           
-            rotary.setDivider(4);
-            rotary.setRange(0, 27);
-            rotary.setPosition(g_TZ_hour+13);
+            Rotary::init(-12, 15, g_TZ_hour, Rotary::ticksPerRotation / 12);
             g_clock_state = STATE_MENU_GPS_TZH;            
           }
           else {
             disp2(0, 7);
-            disp2(1, rotary.getPosition());
+            disp2(1, Rotary::getValue() % 2);
           }
         }
         break;
         case STATE_MENU_GPS_TZH: // menu item 8 (-13 to 14)
         {
           if (button.b1_keyup) { // Go to STATE_MENU_GPS_TZM
-            g_TZ_hour = rotary.getPosition() - 13;
+            g_TZ_hour = Rotary::getValue();
           
-            rotary.setRange(0, 3); // 0, 15, 30, 45 min
-            rotary.setPosition(g_TZ_minute);
+            Rotary::init(0, 4, g_TZ_minute, Rotary::ticksPerRotation / 4);
             g_clock_state = STATE_MENU_GPS_TZM;            
           }
           else {
-            int8_t tzh = rotary.getPosition() - 13;
+            int8_t tzh = Rotary::getValue();
             if (tzh < 0) {
               disp2(1, -tzh);
               set_dots(true, true);
@@ -1199,29 +1179,27 @@ void loop() {
         case STATE_MENU_GPS_TZM: // menu item 9 (0, 15, 30, 45)
         {
           if (button.b1_keyup) {
-            g_TZ_minute = rotary.getPosition();
+            g_TZ_minute = Rotary::getValue() % 4;
             
-            rotary.setDivider(10);
-            rotary.setRange(0, 1);
-            rotary.setPosition(g_dst_offset);
+            Rotary::init(0, 2, g_dst_offset, Rotary::ticksPerRotation / 2);
             g_clock_state = STATE_MENU_DST_OFFSET;            
           }
           else {
             disp2(0, 9);
-            disp2(1, rotary.getPosition()*15);
+            disp2(1, Rotary::getValue() * 15);
           }
         }
         break;
         case STATE_MENU_DST_OFFSET: // menu item 10 (0, 1)
         {
           if (button.b1_keyup) {
-            g_dst_offset = rotary.getPosition();
+            g_dst_offset = Rotary::getValue() % 2;
             
             exit_menu();
           }
           else {
             disp2(0, 10);
-            disp2(1, rotary.getPosition());
+            disp2(1, Rotary::getValue() % 2);
           }
         }
         break;
@@ -1259,5 +1237,3 @@ uint32_t rnd(void)
     lfsr = (lfsr >> 1) ^ (-(lfsr & 1u) & 0xD0000001u);
     return lfsr;
 }
-
-

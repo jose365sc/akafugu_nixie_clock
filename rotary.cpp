@@ -18,11 +18,6 @@
 #include "rotary.h"
 #include <avr/interrupt.h>
 
-extern volatile bool g_update_rtc;
-extern volatile bool g_update_backlight;
-extern volatile bool g_blink_on;
-extern volatile uint16_t g_rotary_moved_timer;
-
 // rotary encoder
 // NOTE: PB6 and PB7 are used for the oscillator on normal Arduino boards, and are not mapped to
 //       I/O pin numbers, so we will use direct pin access
@@ -33,15 +28,13 @@ extern volatile uint16_t g_rotary_moved_timer;
 #define ROTARY_1_PIN PINB6
 #define ROTARY_2_PIN PINB7
 
-// Rotary encoder singleton
-Rotary rotary;
+////// interrupt handler for rotary encoder
+//// increment/decrement s_rotary_raw_pos regarding pins state at each interrupt
 
+// hold last state of pins
 uint8_t s_encoder_state;
-
 // Raw position of rotary encoder (4 ticks per click)
-volatile uint8_t s_rotary_raw_pos;
-// Current position of rotary encoder
-volatile uint8_t s_rotary_pos;
+volatile int32_t s_rotary_raw_pos = 0;
 
 #if defined(BOARD_STANDARD) || defined(BOARD_MK2) || defined(BOARD_MODULAR)
 #  define POSITION_INCREMENT(v, n) (v) += (n)
@@ -73,21 +66,17 @@ ISR( PCINT0_vect )
       POSITION_DECREMENT(s_rotary_raw_pos, 2); break;
     }
 
-  s_rotary_pos = s_rotary_raw_pos;
   s_encoder_state = (s >> 2);
-  
-  // wrap position
-  rotary.wrap();
-    
-  g_update_backlight = true;
-  g_update_rtc = true;
-  
-  // set cooldown timer to disable blink for a small time frame after
-  // the rotary encoder moves
-  g_rotary_moved_timer = 100;
-  g_blink_on = false;
 }
 
+  static int Rotary::s_from = 0;
+  static int Rotary::s_to = 1;
+  static int Rotary::s_value_base = 0;
+  static int Rotary::s_divider = 1;
+  static int Rotary::s_saved_from = 0;
+  static int Rotary::s_saved_to = 1;
+  static int Rotary::s_saved_value = 0;
+  static int Rotary::s_saved_divider = 1;
 
 void Rotary::begin()
 {
@@ -109,73 +98,44 @@ void Rotary::begin()
   if (PINB & _BV(ROTARY_2_PIN)) s |= 2;
   s_encoder_state = s;
 }
-  
-void Rotary::setDivider(uint8_t divider)
+
+bool Rotary::init(int from, int to, int current_value, int divider)
 {
-  m_divider = divider;
+  if (from < to) { s_from = from; s_to = to; }
+  else if (from > to) { s_from = to; s_to = from; }
+  else { s_from = from; s_to = to + 1; }
+
+  s_divider = divider;
+  s_value_base = current_value;
+  s_rotary_raw_pos = 0;
+  
+  return !(from == to || divider <= 0 || s_value_base < s_from || s_to <= s_value_base);
 }
 
-void Rotary::setRange(uint8_t from, uint8_t to)
+int Rotary::getValue()
 {
-  m_min = from * m_divider;
-  m_max = to   * m_divider + (m_divider-1);
+  return ((s_value_base + (s_rotary_raw_pos + s_divider / 2) / s_divider) - s_from) % (s_to - s_from) + s_from;
 }
 
-void Rotary::setPosition(uint8_t value)
+void Rotary::incrementValue()
 {
-  s_rotary_raw_pos =  value;
-  s_rotary_pos = value * m_divider;
-  
-  wrap();
-  
-  //s_rotary_raw_pos = s_rotary_pos = value * m_divider;  
+  s_rotary_raw_pos += s_divider;
 }
 
-void Rotary::incrementPosition()
+void Rotary::decrementValue()
 {
-  s_rotary_raw_pos++;
-  s_rotary_pos += m_divider;
-  
-  wrap();    
-}
-
-void Rotary::decrementPosition()
-{
-  s_rotary_raw_pos--;
-  s_rotary_pos -= m_divider;
-  
-  wrap();
-}
-
-void Rotary::wrap()
-{
-  if (s_rotary_pos == 0xFF)
-    s_rotary_pos = s_rotary_raw_pos = m_max;
-  else if (s_rotary_pos > m_max)
-    s_rotary_pos = s_rotary_raw_pos = m_min;
+  s_rotary_raw_pos -= s_divider;
 }
 
 void Rotary::save()
 {
-  m_saved_pos = s_rotary_raw_pos;
-  m_saved_min = m_min;
-  m_saved_max = m_max;
+  s_saved_from = s_from;
+  s_saved_to = s_to;
+  s_saved_value = getValue();
+  s_saved_divider = s_divider;
 }
 
 void Rotary::restore()
 {
-  s_rotary_pos = s_rotary_raw_pos = m_saved_pos;
-  m_min = m_saved_min;
-  m_max = m_saved_max;  
+  init(s_saved_from, s_saved_to, s_saved_value, s_saved_divider);
 }
-
-uint8_t Rotary::getPosition()
-{
-  return s_rotary_pos / m_divider;
-}
-
-uint8_t Rotary::getRawPosition()
-{
-  return s_rotary_pos;
-}
-

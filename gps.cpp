@@ -22,6 +22,7 @@
 #include <util/delay.h>
 #include "gps.h"
 #include "time.h"
+#include "pitches.h"
 
 #include <WireRtcLib.h>
 
@@ -63,18 +64,38 @@ void setRTCTime(time_t t)
     rtc.setTime_s(tm.Hour, tm.Minute, tm.Second);   
 }
 
+void debugwrite(char *s)
+{
+#if 0
+  Serial.write(s); 
+#endif
+}
+
+void debugwritechar(char c)
+{
+#if 0
+  Serial.write(c);
+#endif
+}
+
 void GPSread(void) 
 {
-  char c = 0;
-
-  if ((g_gps_enabled) && (UCSR0A & _BV(RXC0))) {
-		c=UDR0;  // get a byte from the port
+  if (!g_gps_enabled)
+    return;
+  
+  int cc = 0;
+  while ((cc = Serial.read()) >= 0) {
+    char c = cc;
+    debugwritechar(c); // debug
+    
 		if (c == '$') {
 			gpsNextBuffer[gpsBufferPtr] = 0;
 			gpsBufferPtr = 0;
-
-		}
-		if (c == '\n') {  // newline marks end of sentence
+     
+		} else if (c == '\n') {  // newline marks end of sentence
+      debugwrite("read as:"); // debug
+      debugwrite(gpsNextBuffer); // debug
+      debugwrite("\r\n"); // debug
 			gpsNextBuffer[gpsBufferPtr] = 0;  // terminate string
 			if (gpsNextBuffer == gpsBuffer1) {  // switch buffers
 				gpsNextBuffer = gpsBuffer2;
@@ -89,8 +110,7 @@ void GPSread(void)
 		gpsNextBuffer[gpsBufferPtr++] = c;  // add char to current buffer, then increment index
 		if (gpsBufferPtr >= GPSBUFFERSIZE) { // if buffer full
 			gpsBufferPtr = GPSBUFFERSIZE-1;  // decrement index to make room (overrun)
-                }
-
+    }
 	}
 }
 
@@ -220,7 +240,6 @@ void parseGPSdata(char *gpsBuffer) {
 				tm.Year = tmp % 100;
 				ptr = strtok(NULL, "*\r");  // magnetic variation & dir
 				if (ptr == NULL) goto GPSerror1;
-				if (ptr == NULL) goto GPSerror1;
 				ptr = strtok(NULL, ",*\r");  // Checksum
 				if (ptr == NULL) goto GPSerror1;
 //				strncpy(gpsCKS, ptr, 2);  // save checksum chars
@@ -241,13 +260,14 @@ void parseGPSdata(char *gpsBuffer) {
 						tNow = tNow + (long)g_TZ_minute * SECS_PER_HOUR;
 					setRTCTime(tNow);  // set RTC from adjusted GPS time & date
 				}
-				else
+				else {
 					g_gps_updating = false;
-
+				}
 			} // if fix status is A
 		} // if checksums match
-		else  // checksums do not match
+		else { // checksums do not match
 			g_gps_cks_errors++;  // increment error count
+		}
 		return;
 GPSerror1:
 		g_gps_parse_errors++;  // increment error count
@@ -261,25 +281,16 @@ GPSerror2a:
 	}  // if "$GPRMC"
 }
 
-void uart_init(uint16_t BRR) {
-  /* setup the main UART */
-  UBRR0 = BRR;               // set baudrate counter
-
-  UCSR0B = _BV(RXEN0) | _BV(TXEN0);
-  UCSR0C = _BV(USBS0) | (3<<UCSZ00);
-  DDRD |= _BV(PORTD1);
-  DDRD &= ~_BV(PORTD0);
-}
 
 void gps_init(uint8_t gps) {
 	switch (gps) {
 		case(0):  // no GPS
 			break;
 		case(48):
-			uart_init(BRRL_4800);
+      Serial.begin(4800, SERIAL_8N1);
 			break;
 		case(96):
-			uart_init(BRRL_9600);
+      Serial.begin(9600, SERIAL_8N1);
 			break;
 	}
 	tGPSupdate = 0;  // reset GPS last update time
@@ -287,7 +298,7 @@ void gps_init(uint8_t gps) {
   gpsBufferPtr = 0;
   gpsNextBuffer = gpsBuffer1;
   gpsLastBuffer = gpsBuffer2;
+  debugwrite("serial initialized\r\n");
 }
 
 #endif // HAVE_GPS
-

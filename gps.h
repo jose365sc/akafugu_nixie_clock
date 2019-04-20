@@ -21,7 +21,7 @@
 #ifdef HAVE_GPS
 
 // String buffer size:
-#define GPSBUFFERSIZE 96 
+#define GPSBUFFERSIZE 128
 //The year the clock was programmed, used for error checking
 #define PROGRAMMING_YEAR 12
 
@@ -62,4 +62,3 @@ void gps_init(uint8_t gps);
 #endif // HAVE_GPS
 
 #endif // GPS_H_
-
