@@ -35,6 +35,8 @@
 uint8_t s_encoder_state;
 // Raw position of rotary encoder (4 ticks per click)
 volatile int32_t s_rotary_raw_pos = 0;
+// moved flag : set when moved. no automatic clear
+volatile bool s_rotary_moved = false;
 
 #if defined(BOARD_STANDARD) || defined(BOARD_MK2) || defined(BOARD_MODULAR)
 #  define POSITION_INCREMENT(v, n) (v) += (n)
@@ -67,6 +69,7 @@ ISR( PCINT0_vect )
     }
 
   s_encoder_state = (s >> 2);
+  s_rotary_moved = true;
 }
 
   static int Rotary::s_from = 0;
@@ -114,7 +117,7 @@ bool Rotary::init(int from, int to, int current_value, int divider)
 
 int Rotary::getValue()
 {
-  return ((s_value_base + (s_rotary_raw_pos + s_divider / 2) / s_divider) - s_from) % (s_to - s_from) + s_from;
+  return (((s_value_base + (s_rotary_raw_pos + s_divider / 2) / s_divider) - s_from) % (s_to - s_from) + (s_to - s_from)) % (s_to - s_from) + s_from;
 }
 
 void Rotary::incrementValue()
@@ -138,4 +141,14 @@ void Rotary::save()
 void Rotary::restore()
 {
   init(s_saved_from, s_saved_to, s_saved_value, s_saved_divider);
+}
+
+bool Rotary::isMoved()
+{
+  return s_rotary_moved;
+}
+
+void Rotary::clearMoved()
+{
+  s_rotary_moved = false;
 }

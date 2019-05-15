@@ -28,6 +28,8 @@ public:
   static const int ticksPerRotation = 4 * 12;
   static void save();
   static void restore();
+  static bool isMoved();
+  static void clearMoved();
 private:
   static int s_from;
   static int s_to;

@@ -209,9 +209,9 @@ void display_init()
 
 #ifdef HAVE_GPS
     gps_init(g_gps_enabled ? 48 : 0); // fixme: support both modes
+#else
+  Serial.begin(4800);
 #endif // HAVE_GPS
-  
-  Serial.begin(9600);
 }
 
 void read_eeprom()
@@ -662,7 +662,16 @@ void loop() {
 #else
     _delay_us(DELAY);
 #endif
-      
+
+    if (Rotary::isMoved())  
+    {
+      g_update_rtc = true;
+      g_update_backlight = true;
+      g_rotary_moved_timer = 100;
+      g_blink_on = false;
+      Rotary::clearMoved();
+    }
+
     if (int_counter++ == 15) {
       int_counter = 0;
       
